@@ -17,8 +17,18 @@ for example in data["train"]:
 	for char in [':',',','\'','\"','?','-','.','!','(',')','&','/']:
 		example["title"]=example["title"].replace(char,' ')
 
-for i in range(10):
-	print(data["train"][i]["title"])
+for example in data["dev"]:
+    example["title"]=example["title"].lower()
+    for char in [':',',','\'','\"','?','-','.','!','(',')','&','/']:
+        example["title"]=example["title"].replace(char,' ')
+
+for example in data["test"]:
+    example["title"]=example["title"].lower()
+    for char in [':',',','\'','\"','?','-','.','!','(',')','&','/']:
+        example["title"]=example["title"].replace(char,' ')
+
+#for i in range(10):
+#	print(data["train"][i]["title"])
 
 class Vocab:
     #This class handles the mapping between the words and their indicies
@@ -49,11 +59,37 @@ def make_vocabs(data):
         vocab.add_sentence(sent)
 
     logging.info('vocab size: %s',vocab.n_words)
-    print(vocab.n_words)
-    print(vocab.index2word)
+    #print(vocab.n_words)
+    #print(vocab.index2word)
     return vocab
 	
-make_vocabs(data["train"])
+vocab = make_vocabs(data["train"])
 
+def make_data_input(data_all, vocab):
+    data_input = {}
+    data_input["train"] = []
+    data_input["dev"] = []
+    data_input["test"] = []
+    word2index = vocab.word2index
+    for dataset_key in data:
+        dataset = data[dataset_key]
+        for data_point in dataset:
+            title = data_point["title"]
+            cat = data_point["cat"]
+            words = title.split(' ')
+            words_indices = []
+            for word in words:
+                if word in word2index:
+                    vocab_index = word2index[word]
+                else:
+                    vocab_index = vocab.n_words  # OOV
+                words_indices.append(vocab_index)
+            data_input[dataset_key].append((words_indices, cat))
 
+    # print(data_input)
+    return data_input
+
+data_input = make_data_input(data, vocab)
+
+pickle.dump(data_input, open("data_input.pkl", "wb"))
 

@@ -9,7 +9,7 @@ def read_csv_data(csv_file_name):
 	data_all["test"] = []
 	csv_reader = csv.reader(open(csv_file_name), delimiter=',')
 	line_count = 0
-	cat_dict = {'b': 1, 't': 2, 'e': 3, 'm': 4} # make categories represented by number
+	cat_dict = {'b': 0, 't': 1, 'e': 2, 'm': 3} # make categories represented by number
 	for row in csv_reader:
 		if line_count == 0:
 			# skip the first line
