@@ -50,27 +50,59 @@ class Vocab:
             self.n_words += 1
         else:
             self.word2count[word] += 1
+
+class CharVocab:
+    #This class handles the mapping between the chars and their indicies
+    def __init__(self):
+        self.char2index = {}
+        self.char2count = {}
+        self.index2char = {SOS_index: SOS_token, EOS_index: EOS_token}
+        self.n_chars = 2  # Count SOS and EOS
+
+    def add_sentence(self, sentence):
+        for char in sentence:
+            self._add_char(char)
+
+    def _add_char(self, char):
+        if char not in self.char2index:
+            self.char2index[char] = self.n_chars
+            self.char2count[char] = 1
+            self.index2char[self.n_chars] = char
+            self.n_chars += 1
+        else:
+            self.char2count[char] += 1  
+
 			
 def make_vocabs(data):
     #Creates the vocabs based on the training corpus.
     vocab = Vocab()
+    char_vocab = CharVocab()
     for example in data:
         sent=example["title"]
         vocab.add_sentence(sent)
+        char_vocab.add_sentence(sent)
 
     logging.info('vocab size: %s',vocab.n_words)
+    logging.info('char vocab size: %s',char_vocab.n_chars)
     #print(vocab.n_words)
     #print(vocab.index2word)
-    return vocab
-	
-vocab = make_vocabs(data["train"])
+    return vocab, char_vocab
 
-def make_data_input(data_all, vocab):
+vocab, char_vocab = make_vocabs(data["train"])
+
+# print(char_vocab.n_chars + 1)
+
+def make_data_input(data_all, vocab, char_vocab):
     data_input = {}
     data_input["train"] = []
     data_input["dev"] = []
     data_input["test"] = []
+    char_data_input = {}
+    char_data_input["train"] = []
+    char_data_input["dev"] = []
+    char_data_input["test"] = []
     word2index = vocab.word2index
+    char2index = char_vocab.char2index
     for dataset_key in data:
         dataset = data[dataset_key]
         for data_point in dataset:
@@ -85,11 +117,20 @@ def make_data_input(data_all, vocab):
                     vocab_index = vocab.n_words  # OOV
                 words_indices.append(vocab_index)
             data_input[dataset_key].append((words_indices, cat))
+            chars_indices = []
+            for char in title:
+                if char in char2index:
+                    char_vocab_index = char2index[char]
+                else:
+                    char_vocab_index = char_vocab.n_chars # OOC
+                chars_indices.append(char_vocab_index)
+            char_data_input[dataset_key].append((chars_indices, cat))
 
     # print(data_input)
-    return data_input
+    # print(char_data_input)
+    return data_input, char_data_input
 
-data_input = make_data_input(data, vocab)
+data_input, char_data_input = make_data_input(data, vocab, char_vocab)
 
-pickle.dump(data_input, open("data_input.pkl", "wb"))
-
+# pickle.dump(data_input, open("data_input.pkl", "wb"))
+# pickle.dump(char_data_input, open("char_data_input.pkl", "wb"))
