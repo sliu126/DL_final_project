@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 class Args(object):
     def __init__(self, epochs=10, lr=0.01,
-                optimizer='sgd', momentum=0.5, seed=1, model="ConvNet", conv_level = "word"):
+                optimizer='sgd', momentum=0.5, seed=1, model="ConvNet", conv_level = "word", cuda = True):
         self.epochs = epochs
         self.lr = lr
         self.optimizer = optimizer
@@ -24,6 +24,7 @@ class Args(object):
         self.seed = seed
         self.model = model
         self.conv_level = conv_level
+        self.cuda = cuda and torch.cuda.is_available()
 
 # sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf8')
 
@@ -72,7 +73,7 @@ class LSTMNet(nn.Module):
 
 
 
-def train(model, optimizer, train_data, epoch, total_minibatch_count, train_losses, train_accs):
+def train(args, model, optimizer, train_data, epoch, total_minibatch_count, train_losses, train_accs):
     
     model.train()
     correct_count, total_loss, total_acc = 0., 0., 0.
@@ -86,6 +87,8 @@ def train(model, optimizer, train_data, epoch, total_minibatch_count, train_loss
         target = torch.LongTensor([target])
         # print(data)
         # print(target)
+        if args.cuda:
+        	data, target = data.cuda(), target.cuda()
         
         data, target = Variable(data), Variable(target)
 
@@ -123,7 +126,7 @@ def train(model, optimizer, train_data, epoch, total_minibatch_count, train_loss
     return total_minibatch_count
 
 
-def test(model, test_data, epoch, total_minibatch_count, dev_losses, dev_accs):
+def test(args, model, test_data, epoch, total_minibatch_count, dev_losses, dev_accs):
     
     model.eval()
     test_loss, correct = 0., 0.
@@ -134,6 +137,8 @@ def test(model, test_data, epoch, total_minibatch_count, dev_losses, dev_accs):
                 continue
             data = torch.LongTensor(data)
             target = torch.LongTensor([target])
+            if args.cuda:
+            	data, target = data.cuda(), target.cuda()
             data, target = Variable(data), Variable(target)
             # print(data)
             # print(target)
@@ -187,6 +192,9 @@ def run_experiment(args):
     else:
         raise ValueError('Unsupported model: ' + args.model)
 
+    if args.cuda:
+    	model.cuda()
+
     # args.optimizer
     if args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(), lr = args.lr, momentum = args.momentum)
@@ -205,8 +213,8 @@ def run_experiment(args):
     # dev_acc = test(model, dev_data, 0, total_minibatch_count, dev_losses, dev_accs)
     # time.sleep(0.5)
     for epoch in range(1, epochs_to_run + 1):
-        total_minibatch_count = train(model, optimizer, train_data, epoch, total_minibatch_count, train_losses, train_accs)
-        dev_acc = test(model, dev_data, epoch, total_minibatch_count, dev_losses, dev_accs)
+        total_minibatch_count = train(args, model, optimizer, train_data, epoch, total_minibatch_count, train_losses, train_accs)
+        dev_acc = test(args, model, dev_data, epoch, total_minibatch_count, dev_losses, dev_accs)
 
     fig, axes = plt.subplots(1,4, figsize=(16,4))
     # plot the losses and acc
