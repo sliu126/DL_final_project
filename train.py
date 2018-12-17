@@ -12,6 +12,7 @@ import pickle
 from make_vocab import Vocab
 import time
 import matplotlib.pyplot as plt
+import os
 
 
 class Args(object):
@@ -70,6 +71,32 @@ class LSTMNet(nn.Module):
         x = x.squeeze(0)
         return F.log_softmax(x, dim = 1)
 
+class LSTMAttentionNet(nn.Module):
+	def __init__(self, vocab_size, embed_dim):
+		super(LSTMAttentionNet, self).__init__()
+		self.embed = nn.Embedding(vocab_size, embed_dim)
+		self.lstm = nn.LSTM(embed_dim, embed_dim)
+		self.att_fc1 = nn.Linear(embed_dim, embed_dim)
+		self.att_fc2 = nn.Linear(embed_dim, 1)
+		self.fc1 = nn.Linear(embed_dim, 4)
+		self.vocab_size = vocab_size
+		self.embed_dim = embed_dim
+		self.h0 = nn.Parameter(torch.randn(1, 1, embed_dim))
+		self.c0 = nn.Parameter(torch.randn(1, 1, embed_dim))
+
+	def forward(self, x):
+		x = self.embed(x)
+		x = x.unsqueeze(1)
+		output, (hn, cn) = self.lstm(x, (self.h0, self.c0))
+		alpha = torch.tanh(self.att_fc1(output))
+		#print(alpha)
+		alpha = self.att_fc2(alpha).squeeze(1)
+		#print(alpha)
+		alpha = F.softmax(alpha.t(), dim = 1)
+		#print(alpha.size())
+		c = torch.mm(alpha, output.squeeze(1)) # 1 by embed_dim
+		c = self.fc1(c)
+		return F.log_softmax(c, dim = 1)
 
 
 
@@ -182,13 +209,19 @@ def run_experiment(args):
 
     train_data = data["train"]
     dev_data = data["dev"]
+    test_data = data["test"]
     epochs_to_run = args.epochs
+    torch.manual_seed(args.seed)
+    if args.cuda:
+    	torch.cuda.manual_seed(args.seed)
 
     total_minibatch_count = 0
     if args.model == 'ConvNet':
         model = ConvNet(vocab_size, 10, [3])
     elif args.model == 'LSTMNet':
         model = LSTMNet(vocab_size, 10)
+    elif args.model == 'LSTMAttentionNet':
+    	model = LSTMAttentionNet(vocab_size, 10)
     else:
         raise ValueError('Unsupported model: ' + args.model)
 
@@ -207,14 +240,18 @@ def run_experiment(args):
 
 
     dev_acc = 0
+    best_dev_acc = 0
     train_losses, train_accs = [], []
     dev_losses, dev_accs = [], []
+    test_losses, test_accs = [], []
 
     # dev_acc = test(model, dev_data, 0, total_minibatch_count, dev_losses, dev_accs)
     # time.sleep(0.5)
     for epoch in range(1, epochs_to_run + 1):
         total_minibatch_count = train(args, model, optimizer, train_data, epoch, total_minibatch_count, train_losses, train_accs)
         dev_acc = test(args, model, dev_data, epoch, total_minibatch_count, dev_losses, dev_accs)
+        if dev_acc > best_dev_acc:
+        	torch.save(model.state_dict(), os.path.join(os.getcwd() + '/' + args.model + args.conv_level))
 
     fig, axes = plt.subplots(1,4, figsize=(16,4))
     # plot the losses and acc
@@ -230,5 +267,9 @@ def run_experiment(args):
     plt.tight_layout()
     plt.show()
 
+    # final test
+    test_acc = test(args, model, test_data, epochs_to_run, total_minibatch_count, test_losses, test_accs)
+    print("final test accuracy is %.2f%%." % (test_acc * 100))
 
-run_experiment(Args(model='LSTMNet', conv_level='word', epochs=5))
+
+run_experiment(Args(model='ConvNet', conv_level='char', epochs=5))
