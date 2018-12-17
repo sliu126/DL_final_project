@@ -202,9 +202,11 @@ def run_experiment(args):
 
     if args.conv_level == 'word':
         data = pickle.load(open('data_input.pkl', 'rb'))
+        self_test_data = pickle.load(open('test_data_input.pkl', 'rb'))
         vocab_size = 57634
     elif args.conv_level == 'char':
         data = pickle.load(open('char_data_input.pkl', 'rb'))
+        self_test_data = pickle.load(open('test_char_data_input.pkl', 'rb'))
         vocab_size = 176  
 
     train_data = data["train"]
@@ -253,6 +255,8 @@ def run_experiment(args):
         if dev_acc > best_dev_acc:
         	torch.save(model.state_dict(), os.path.join(os.getcwd() + '/' + args.model + args.conv_level))
 
+    model.load_state_dict(torch.load(os.path.join(os.getcwd() + '/' + args.model + args.conv_level)))
+
     fig, axes = plt.subplots(1,4, figsize=(16,4))
     # plot the losses and acc
     plt.title(args.model)
@@ -270,6 +274,8 @@ def run_experiment(args):
     # final test
     test_acc = test(args, model, test_data, epochs_to_run, total_minibatch_count, test_losses, test_accs)
     print("final test accuracy is %.2f%%." % (test_acc * 100))
+    self_test_acc = test(args, model, self_test_data, epochs_to_run, total_minibatch_count, test_losses, test_accs)
+    print("final self test accuracy is %.2f%%." % (self_test_acc * 100))
 
 
-run_experiment(Args(model='ConvNet', conv_level='char', epochs=5))
+run_experiment(Args(model='ConvNet', conv_level='char', epochs=0))

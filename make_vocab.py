@@ -8,9 +8,11 @@ EOS_token = "<EOS>"
 SOS_index = 0
 EOS_index = 1
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
+# sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 file=open('data_all.pkl','rb')
 data=pickle.load(file)
+test_file = open('data_test.pkl', 'rb')
+test_data = pickle.load(test_file)
 
 for example in data["train"]:
 	example["title"]=example["title"].lower()
@@ -23,6 +25,11 @@ for example in data["dev"]:
         example["title"]=example["title"].replace(char,' ')
 
 for example in data["test"]:
+    example["title"]=example["title"].lower()
+    for char in [':',',','\'','\"','?','-','.','!','(',')','&','/']:
+        example["title"]=example["title"].replace(char,' ')
+
+for example in test_data:
     example["title"]=example["title"].lower()
     for char in [':',',','\'','\"','?','-','.','!','(',')','&','/']:
         example["title"]=example["title"].replace(char,' ')
@@ -91,7 +98,9 @@ def make_vocabs(data):
 vocab, char_vocab = make_vocabs(data["train"])
 
 # print(char_vocab.n_chars + 1)
+print(vocab.n_words + 1)
 
+'''
 def make_data_input(data_all, vocab, char_vocab):
     data_input = {}
     data_input["train"] = []
@@ -129,8 +138,45 @@ def make_data_input(data_all, vocab, char_vocab):
     # print(data_input)
     # print(char_data_input)
     return data_input, char_data_input
+'''
 
-data_input, char_data_input = make_data_input(data, vocab, char_vocab)
+def make_test_data_input(test_data, vocab, char_vocab):
+    test_data_input = []
+    test_char_data_input = []
+    word2index = vocab.word2index
+    char2index = char_vocab.char2index
+    dataset = test_data
+    for data_point in dataset:
+        title = data_point["title"]
+        cat = data_point["cat"]
+        words = title.split(' ')
+        words_indices = []
+        for word in words:
+            if word in word2index:
+                vocab_index = word2index[word]
+            else:
+                vocab_index = vocab.n_words  # OOV
+            words_indices.append(vocab_index)
+        test_data_input.append((words_indices, cat))
+        chars_indices = []
+        for char in title:
+            if char in char2index:
+                char_vocab_index = char2index[char]
+            else:
+                char_vocab_index = char_vocab.n_chars # OOC
+            chars_indices.append(char_vocab_index)
+        test_char_data_input.append((chars_indices, cat))
+
+    # print(data_input)
+    # print(char_data_input)
+    return test_data_input, test_char_data_input
+
+
+# data_input, char_data_input = make_data_input(data, vocab, char_vocab)
+test_data_input, test_char_data_input = make_test_data_input(test_data, vocab, char_vocab)
 
 # pickle.dump(data_input, open("data_input.pkl", "wb"))
 # pickle.dump(char_data_input, open("char_data_input.pkl", "wb"))
+pickle.dump(test_data_input, open("test_data_input.pkl", "wb"))
+pickle.dump(test_char_data_input, open("test_char_data_input.pkl", "wb"))
+
