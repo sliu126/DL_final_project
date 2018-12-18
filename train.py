@@ -35,7 +35,8 @@ class ConvNet(nn.Module):
         super(ConvNet, self).__init__()
         self.embed = nn.Embedding(vocab_size, embed_dim)
         self.convs = nn.ModuleList([nn.Conv2d(1, 5, (window, embed_dim)) for window in windows])
-        self.fc1 = nn.Linear(5*len(windows), 4)
+        self.fc1 = nn.Linear(5*len(windows), 100)
+        self.fc2 = nn.Linear(100, 4)
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.windows = windows
@@ -49,6 +50,7 @@ class ConvNet(nn.Module):
         x = torch.cat(x, 1)
         x = F.dropout(x, training = self.training)
         x = self.fc1(x)
+        x = self.fc2(x)
         return F.log_softmax(x, dim=1)
 
 class LSTMNet(nn.Module):
@@ -89,11 +91,8 @@ class LSTMAttentionNet(nn.Module):
 		x = x.unsqueeze(1)
 		output, (hn, cn) = self.lstm(x, (self.h0, self.c0))
 		alpha = torch.tanh(self.att_fc1(output))
-		#print(alpha)
 		alpha = self.att_fc2(alpha).squeeze(1)
-		#print(alpha)
 		alpha = F.softmax(alpha.t(), dim = 1)
-		#print(alpha.size())
 		c = torch.mm(alpha, output.squeeze(1)) # 1 by embed_dim
 		c = self.fc1(c)
 		return F.log_softmax(c, dim = 1)
@@ -108,12 +107,11 @@ def train(args, model, optimizer, train_data, epoch, total_minibatch_count, trai
     data_size = len(train_data)
 
     for idx, (data, target) in enumerate(progress_bar):
-        if len(data) < 3:
+        if len(data) < 5:
             continue
         data = torch.LongTensor(data)
         target = torch.LongTensor([target])
-        # print(data)
-        # print(target)
+
         if args.cuda:
         	data, target = data.cuda(), target.cuda()
         
@@ -130,8 +128,6 @@ def train(args, model, optimizer, train_data, epoch, total_minibatch_count, trai
         optimizer.step()
 
         pred = output.data.max(1)[1]
-        #print(output)
-        #print(pred)
 
         if target == pred:
             correct_count += 1
@@ -160,15 +156,14 @@ def test(args, model, test_data, epoch, total_minibatch_count, dev_losses, dev_a
     progress_bar = tqdm.tqdm(test_data, desc='Validation')
     with torch.no_grad():
         for idx, (data, target) in enumerate(progress_bar):
-            if len(data) < 3:
+            if len(data) < 5:
                 continue
             data = torch.LongTensor(data)
             target = torch.LongTensor([target])
             if args.cuda:
             	data, target = data.cuda(), target.cuda()
             data, target = Variable(data), Variable(target)
-            # print(data)
-            # print(target)
+
             output = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').data
             pred = output.data.max(1)[1]
@@ -185,13 +180,6 @@ def test(args, model, test_data, epoch, total_minibatch_count, dev_losses, dev_a
     acc = correct / len(test_data)
     dev_losses.append(test_loss)
     dev_accs.append(acc)
-
-    # progress_bar.clear()
-    '''
-    print('Epoch: %d validation test results - Average val_loss: %.4f, val_acc: %d/%d (%.2f)%%)' % (
-            epoch, test_loss, correct, len(test_data),
-            100. * correct / len(test_data)))
-    '''
 
     return acc
 
@@ -219,7 +207,7 @@ def run_experiment(args):
 
     total_minibatch_count = 0
     if args.model == 'ConvNet':
-        model = ConvNet(vocab_size, 10, [3])
+        model = ConvNet(vocab_size, 10, [3, 4, 5])
     elif args.model == 'LSTMNet':
         model = LSTMNet(vocab_size, 10)
     elif args.model == 'LSTMAttentionNet':
@@ -247,15 +235,14 @@ def run_experiment(args):
     dev_losses, dev_accs = [], []
     test_losses, test_accs = [], []
 
-    # dev_acc = test(model, dev_data, 0, total_minibatch_count, dev_losses, dev_accs)
-    # time.sleep(0.5)
+
     for epoch in range(1, epochs_to_run + 1):
         total_minibatch_count = train(args, model, optimizer, train_data, epoch, total_minibatch_count, train_losses, train_accs)
         dev_acc = test(args, model, dev_data, epoch, total_minibatch_count, dev_losses, dev_accs)
         if dev_acc > best_dev_acc:
         	torch.save(model.state_dict(), os.path.join(os.getcwd() + '/' + args.model + args.conv_level))
 
-    model.load_state_dict(torch.load(os.path.join(os.getcwd() + '/' + args.model + args.conv_level)))
+    # model.load_state_dict(torch.load(os.path.join(os.getcwd() + '/' + args.model + args.conv_level)))
 
     fig, axes = plt.subplots(1,4, figsize=(16,4))
     # plot the losses and acc
@@ -278,4 +265,4 @@ def run_experiment(args):
     print("final self test accuracy is %.2f%%." % (self_test_acc * 100))
 
 
-run_experiment(Args(model='ConvNet', conv_level='char', epochs=0))
+run_experiment(Args(model='ConvNet', conv_level='char', epochs=5))
